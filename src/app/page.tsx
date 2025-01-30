@@ -57,9 +57,11 @@ export default function Home() {
   const [bookingLoading, setBookingLoading] = useState<boolean>(false);
 
   useEffect(() => {
+    setLoading(true)
     fetchSessions()
       .then(setSessions)
       .catch((error) => console.error("Error fetching sessions:", error));
+    setLoading(false)
   }, []);
 
   const addToCart = (session: Session) => {
@@ -120,9 +122,11 @@ export default function Home() {
             <input type="text" className="border p-2  w-full rounded-md" value={type} placeholder='Type...' onChange={(e) => setType(e.target.value)} />
             <input type='text' className="border p-2  w-full rounded-md" value={trainer} placeholder='Trainer...' onChange={(e) => setTrainer(e.target.value)} />
             <button type="button" onClick={() => {
+              setLoading(true)
               fetchSessions(type, trainer)
               .then(setSessions)
               .catch((error) => console.error("Error fetching sessions:", error));
+              setLoading(false)
             }} className="bg-green-500 text-white min-w-[100px] py-2 rounded-md cursor-pointer hover:bg-green-600">
               Filter
             </button>
