@@ -1,101 +1,234 @@
-import Image from "next/image";
+'use client'
+
+import { useState, useEffect, useRef } from "react";
+import { Icon } from "@iconify/react";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+import { bookMultipleSessions, fetchSessions } from '@/services/api';
+
+interface Session {
+  id: number;
+  type: string;
+  trainer: string;
+  duration: number;
+  price: number;
+  time_slot: string;
+}
+
+interface User {
+  name: string;
+  email: string;
+  phone: string;
+}
+
+const SessionCard: React.FC<{ session: Session; addToCart: (session: Session) => void }> = ({ session, addToCart }) => (
+  <div className="border p-4 mb-2 rounded-md">
+    <div className='flex items-center justify-between'>
+      <h3 className='font-bold'>{session.type}</h3>
+      <p>{new Date(session.time_slot).toLocaleString()}</p>
+    </div>
+    
+    <p className='text-[18px] my-[10px]'>{session.trainer} ({session.duration}mins)</p>
+    <div className='flex items-center justify-between'>
+      <p className='font-bold'>${session.price}</p>
+      <button
+        onClick={() => addToCart(session)}
+        className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md cursor-pointer flex items-center gap-[5px]"
+      >
+        <Icon icon="mdi:cart-plus" width="24" height="24" />
+        Add to Cart
+      </button>
+    </div>
+    
+  </div>
+);
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [cart, setCart] = useState<Session[]>([]);
+  const [user, setUser] = useState<User>({ name: "", email: "", phone: "" });
+  const [termsAccepted, setTermsAccepted] = useState<boolean>(false);
+  const [message, setMessage] = useState<string>("");
+  const [type, setType] = useState<string>("");
+  const [trainer, setTrainer] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(false);
+  const form = useRef<HTMLFormElement>(null);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  const [bookingLoading, setBookingLoading] = useState<boolean>(false);
+
+  useEffect(() => {
+    fetchSessions()
+      .then(setSessions)
+      .catch((error) => console.error("Error fetching sessions:", error));
+  }, []);
+
+  const addToCart = (session: Session) => {
+    console.log(session)
+    if (cart.some((item) => item.id === session.id)) {
+      toast.warn("This session is already in your cart.");
+      return;
+    }
+    setCart([...cart, session]);
+  };
+
+  const removeFromCart = (sessionId: number) => {
+    setCart(cart.filter((item) => item.id !== sessionId));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBookingLoading(true)
+    if (!user.name || !user.email || !user.phone || !termsAccepted) {
+      setMessage("Please fill out all fields and accept the terms.");
+      setBookingLoading(false)
+      return;
+    }
+    if (cart.length === 0) {
+      setMessage("Your Cart is empty.");
+      setBookingLoading(false)
+      return;
+    }
+
+    const result = await bookMultipleSessions(
+      cart.map(({ id }) => ({ id })), 
+      user,
+      form,
+    );
+  
+    if (result.success) {
+      toast.success("Confirmation email sent successfully!");
+      toast.success("Booking successful!");
+      setCart([]);
+      setUser({ name: "", email: "", phone: "" });
+      setTermsAccepted(false);
+    } else {
+      toast.error("Booking failed. Please try again.");
+    }
+
+    setBookingLoading(false)
+  };
+
+  return (
+    <>
+      <ToastContainer />
+      <div className="w-[90%] max-w-[800px] p-[20px] rounded-lg shadow-xl bg-white mx-auto my-[40px]">
+      <h1 className="text-2xl font-bold mb-4 text-center">Matchable Checkout</h1>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div >
+          <h2 className="text-xl font-semibold mb-2">Available Sessions</h2>
+          <div className='flex items-center gap-[10px] mb-2'>
+            <input type="text" className="border p-2  w-full rounded-md" value={type} placeholder='Type...' onChange={(e) => setType(e.target.value)} />
+            <input type='text' className="border p-2  w-full rounded-md" value={trainer} placeholder='Trainer...' onChange={(e) => setTrainer(e.target.value)} />
+            <button type="button" onClick={() => {
+              fetchSessions(type, trainer)
+              .then(setSessions)
+              .catch((error) => console.error("Error fetching sessions:", error));
+            }} className="bg-green-500 text-white min-w-[100px] py-2 rounded-md cursor-pointer hover:bg-green-600">
+              Filter
+            </button>
+          </div>
+          <div className='max-h-[400px] overflow-auto custom-scroll'>
+            {
+              loading ? <p>Loading...</p>
+              :
+              sessions && sessions.length > 0 ? sessions.map((session) => (
+                <SessionCard session={session} addToCart={addToCart} key={session.id}/>
+              ))
+              :
+              <p>No Sessions Found!</p>
+            }
+            
+          </div>
+          
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
+        <div>
+          <div className='flex items-center justify-between'>
+            <h2 className="text-xl font-semibold mb-2 flex items-center gap-[5px]">
+            <Icon icon="garden:shopping-cart-stroke-12" width="20" height="20" />
+              Cart
+              </h2>
+              <p className="font-bold">
+              Total: ${cart.reduce((sum, item) => Number(sum) + Number(item.price), 0)}
+            </p>
+          </div>
+          <div className='max-h-[400px] overflow-auto custom-scroll'>
+          {cart.map((item) => (
+            <div key={item.id} className="border p-4 mb-2 rounded-md">
+                <div className='flex items-center justify-between'>
+                  <h3 className='font-bold'>{item.type}</h3>
+                  <p>{new Date(item.time_slot).toLocaleString()}</p>
+                </div>
+                
+                <p className='text-[18px] my-[10px]'>{item.trainer} ({item.duration}mins)</p>
+                <div className='flex items-center justify-between'>
+                  <p className='font-bold'>${item.price}</p>
+                  <button
+                    onClick={() => removeFromCart(item.id)}
+                    className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md cursor-pointer flex items-center gap-[5px]"
+                  >
+                    <Icon icon="mdi:cart-minus" width="24" height="24" />
+                    Remove
+                  </button>
+                </div>
+                
+              </div>
+          ))}
+          </div>
+          
+        </div>
+      </div>
+      <form ref={form} onSubmit={handleSubmit} className="mt-[60px]">
+        <h2 className="text-xl font-semibold mb-2 text-center">Booking Form</h2>
+        <input
+          type="text"
+          placeholder="Name"
+          name='to_name'
+          required
+          value={user.name}
+          onChange={(e) => setUser({ ...user, name: e.target.value })}
+          className="border p-2 mb-2 w-full rounded-md"
+        />
+        <input
+          type="email"
+          placeholder="Email"
+          name='to_email'
+          value={user.email}
+          onChange={(e) => setUser({ ...user, email: e.target.value })}
+          className="border p-2 mb-2 w-full rounded-md"
+        />
+        <input
+          type="tel"
+          placeholder="Phone"
+          value={user.phone}
+          onChange={(e) => setUser({ ...user, phone: e.target.value })}
+          className="border p-2 mb-2 w-full rounded-md"
+        />
+        <label className="block mb-2 flex items-center gap-[2px]" htmlFor='terms' >
+          <input
+            type="checkbox"
+            name='terms'
+            id='terms'
+            checked={termsAccepted}
+            onChange={(e) => setTermsAccepted(e.target.checked)}
           />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+          Accept terms and conditions
+        </label>
+        <input type='hidden' name='from_name' value="Matchable" />
+        <input type='hidden' name='message' value="This is a confirmation email for your booking" />
+        <div className='flex items-center gap-[10px] justify-center'>
+          <button type="button" className="bg-none border text-black w-[100px] py-2 rounded-md cursor-pointer hover:bg-black hover:text-white">
+            Clear
+          </button>
+
+          <button type="submit" disabled={bookingLoading} className={`bg-green-500 text-white w-[100px] py-2 rounded-md cursor-pointer hover:bg-green-600 ${bookingLoading ? 'opacity-[0.4]' : 'opacity-[1]'}`}>
+            Book Now
+          </button>
+
+        </div>
+        
+      </form>
+      {message && <p className="mt-4">{message}</p>}
     </div>
+    </>
   );
 }
